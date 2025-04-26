@@ -1,4 +1,4 @@
-# ignite - High-Throughput In-Memory Key-Value Store in Go
+# ignite - A High-Throughput In-Memory Key-Value Store
 
 `ignite` is a Go package that implements a high-throughput, in-memory key-value
 data store inspired by Bitcask. It is designed for applications requiring fast
