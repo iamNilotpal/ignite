@@ -1,0 +1,62 @@
+# Binaries for programs
+*.exe
+*.dll
+*.so
+*.dylib
+*.o
+*.cgo1.go
+*.cgo2.c
+_cgo_def_*.c
+_cgo_gotypes.go
+_cgo_export.*
+
+# Compiled binaries (relative to the package)
+# For example, if your main package is in the root, ignore the binary name
+# Add your specific BINARY_NAME here if it's different or in a subdirectory
+# Example based on the Makefile:
+dist
+# If your binary is generated elsewhere, add its path, e.g.:
+# bin/
+
+# Output directory for cross-compiled binaries from the Makefile
+/dist/
+
+# Test coverage reports
+*.out
+
+# ide files
+.idea/
+.vscode/
+*.sublime-workspace
+*.vim.swp
+*.vim.swo
+
+# Environment variables file
+.env
+
+# Dependency directories (only if you are vendoring)
+# With Go modules, vendoring is optional and less common.
+# Uncomment the line below if you use `go mod vendor`.
+#/vendor/
+
+# Log files
+*.log
+log/
+
+# Temporary files
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Go build cache
+# This is typically outside the project, but adding it here doesn't hurt
+# and can prevent accidental commits if GOARCH/GOOS tricks create local caches.
+# $(go env GOCACHE)
+
+# Ignore Go modules cache directory if present in project root (shouldn't be standard)
+# /pkg/mod/
+
+# VS Code debugger history
+.vshistory
