@@ -86,7 +86,7 @@ is active for writes. Each entry in the segment has the following structure:
       +----------+-----------+---------+---------+-----------+-----+-------+
       | Checksum | Timestamp | Version | KeySize | ValueSize | Key | Value |
       +----------+-----------+---------+---------+-----------+-----+-------+
-      |<--------------------- Header ------------------------>|<- Payload ->|
+      |<--------------------- Header ----------------------->|<- Payload ->|
 ```
 
 - **Checksum**: Ensures data integrity.
