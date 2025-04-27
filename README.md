@@ -1,4 +1,4 @@
-# Ignite - A High-Throughput In-Memory Key-Value Store
+# ignite - A High-Throughput In-Memory Key-Value Store
 
 `ignite` is a high-performance key/value data store designed for fast read and
 write operations inspired by [Bitcask](https://en.wikipedia.org/wiki/Bitcask).
