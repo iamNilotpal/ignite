@@ -25,3 +25,37 @@ RUN_ARGS ?=
 
 # Output directory for cross-compiled binaries
 CROSS_BUILD_DIR := ./dist
+
+# Go install path for the built binary
+# GOBIN is the directory where go install will put the compiled binaries
+# If not set, it defaults to $GOPATH/bin or $HOME/go/bin
+GOBIN := $(shell go env GOBIN)
+# Use default if GOBIN is not set
+ifndef GOBIN
+  GOBIN = $(shell go env GOPATH)/bin
+  ifndef GOBIN
+    GOBIN = $(HOME)/go/bin
+  endif
+endif
+
+# ANSI Color Codes
+# \033[<color_code>m
+# 32m = Green
+# 33m = Yellow
+# 36m = Cyan
+# 0m  = Reset color
+GREEN := \033[32m
+YELLOW := \033[33m
+CYAN := \033[36m
+RESET := \033[0m
+
+# Emojis
+BUILD_EMOJI := ⚙️
+RUN_EMOJI := 🚀
+TEST_EMOJI := 🔍
+MODULE_EMOJI := 📥
+FORMAT_EMOJI := 📝
+CLEAN_EMOJI := 🧹
+SUCCESS_EMOJI := ✅
+HELP_EMOJI := ℹ️
+STAR_EMOJI := ✳️
