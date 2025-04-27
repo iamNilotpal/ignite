@@ -59,3 +59,50 @@ CLEAN_EMOJI := 🧹
 SUCCESS_EMOJI := ✅
 HELP_EMOJI := ℹ️
 STAR_EMOJI := ✳️
+
+# --- Targets ---
+
+# Default target: builds and runs the application for the host OS/ARCH
+all: build run
+
+# Build the application for the host OS/ARCH
+build: tidy
+	@echo "$(CYAN)$(BUILD_EMOJI) Building $(BINARY_NAME) for $(shell go env GOOS)/$(shell go env GOARCH)...$(RESET)"
+	@GOOS=$(shell go env GOOS) GOARCH=$(shell go env GOARCH) go build $(BUILD_FLAGS) $(EXTRA_BUILD_FLAGS) -o $(CROSS_BUILD_DIR)/$(BINARY_NAME) $(MAIN_PACKAGE)
+	@echo "$(GREEN)$(SUCCESS_EMOJI) Build complete.$(RESET)"
+
+# Run the application (uses the binary built for the host OS/ARCH)
+run: build
+	@echo "$(CYAN)$(RUN_EMOJI) Running $(BINARY_NAME) $(RUN_ARGS)...$(RESET)"
+	@$(CROSS_BUILD_DIR)/$(BINARY_NAME) $(RUN_ARGS)
+
+# Run tests
+test: tidy
+	@echo "$(CYAN)$(TEST_EMOJI) Running tests...$(RESET)"
+	@go test $(TEST_FLAGS) $(EXTRA_TEST_FLAGS) ./...
+	@echo "$(GREEN)$(SUCCESS_EMOJI) Tests complete.$(RESET)"
+
+# Manage dependencies: tidy go.mod and go.sum
+tidy:
+	@echo "$(CYAN)$(MODULE_EMOJI) Tidying Go modules...$(RESET)"
+	@go mod tidy
+	@echo "$(GREEN)$(SUCCESS_EMOJI) Go modules tidied.$(RESET)"
+
+# Download dependencies
+deps:
+	@echo "$(CYAN)$(MODULE_EMOJI) Downloading Go modules...$(RESET)"
+	@go mod download
+	@echo "$(GREEN)$(SUCCESS_EMOJI) Go modules downloaded.$(RESET)"
+
+# Format Go code
+fmt:
+	@echo "$(CYAN)$(FORMAT_EMOJI) Formatting Go code...$(RESET)"
+	@go fmt ./...
+	@echo "$(GREEN)$(SUCCESS_EMOJI) Formatting complete.$(RESET)"
+
+# Clean build artifacts and cross-compiled binaries
+clean:
+	@echo "$(YELLOW)$(CLEAN_EMOJI) Cleaning build artifacts...$(RESET)"
+	@go clean
+	@rm -rf $(CROSS_BUILD_DIR)
+	@echo "$(GREEN)$(SUCCESS_EMOJI) Clean complete.$(RESET)"
