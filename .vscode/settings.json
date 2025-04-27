@@ -1,3 +1,14 @@
 {
-  "cSpell.words": ["Bitcask", "Nilotpal"]
+  "cSpell.words": [
+    "Bitcask",
+    "dylib",
+    "GOARCH",
+    "GOBIN",
+    "GOCACHE",
+    "GOPATH",
+    "gotypes",
+    "netgo",
+    "Nilotpal",
+    "vshistory"
+  ]
 }
