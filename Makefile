@@ -39,11 +39,6 @@ ifndef GOBIN
 endif
 
 # ANSI Color Codes
-# \033[<color_code>m
-# 32m = Green
-# 33m = Yellow
-# 36m = Cyan
-# 0m  = Reset color
 GREEN := \033[32m
 YELLOW := \033[33m
 CYAN := \033[36m
@@ -76,6 +71,75 @@ run: build
 	@echo "$(CYAN)$(RUN_EMOJI) Running $(BINARY_NAME) $(RUN_ARGS)...$(RESET)"
 	@$(CROSS_BUILD_DIR)/$(BINARY_NAME) $(RUN_ARGS)
 
+# Install the application binary to GOBIN for the host OS/ARCH
+# Note: go install also builds the binary if needed
+install: tidy
+	@echo "$(CYAN)$(MODULE_EMOJI) Installing $(BINARY_NAME) to $(GOBIN) for $(shell go env GOOS)/$(shell go env GOARCH)...$(RESET)"
+	@go install $(MAIN_PACKAGE)
+	@echo "$(GREEN)$(SUCCESS_EMOJI) $(BINARY_NAME) installed to $(GOBIN).$(RESET)"
+
+# Generic target to trigger cross-compilation for a specific OS and Architecture
+# Usage: make build-cross OS=<os> ARCH=<arch> [EXTRA_BUILD_FLAGS='...']
+# This target sets the OS/ARCH environment variables and runs the build command.
+build-cross: tidy
+	@echo "$(CYAN)$(BUILD_EMOJI) Building $(BINARY_NAME) for $(OS)/$(ARCH)...$(RESET)"
+	@mkdir -p $(CROSS_BUILD_DIR)/$(OS)/$(ARCH)
+	@GOOS=$(OS) GOARCH=$(ARCH) go build $(BUILD_FLAGS) $(EXTRA_BUILD_FLAGS) -o $(CROSS_BUILD_DIR)/$(OS)/$(ARCH)/$(BINARY_NAME) $(MAIN_PACKAGE)
+	@echo "$(GREEN)$(SUCCESS_EMOJI) Build complete for $(OS)/$(ARCH).$(RESET)"
+
+
+# Example targets for common Unix-based OS and architectures (x86_64)
+# These targets directly invoke the build logic with environment variables.
+build-linux-amd64: tidy
+	@echo "$(CYAN)$(BUILD_EMOJI) Building $(BINARY_NAME) for linux/amd64...$(RESET)"
+	@mkdir -p $(CROSS_BUILD_DIR)/linux/amd64
+	@GOOS=linux GOARCH=amd64 go build $(BUILD_FLAGS) $(EXTRA_BUILD_FLAGS) -o $(CROSS_BUILD_DIR)/linux/amd64/$(BINARY_NAME) $(MAIN_PACKAGE)
+	@echo "$(GREEN)$(SUCCESS_EMOJI) Build complete for linux/amd64.$(RESET)"
+
+build-darwin-amd64: tidy
+	@echo "$(CYAN)$(BUILD_EMOJI) Building $(BINARY_NAME) for darwin/amd64...$(RESET)"
+	@mkdir -p $(CROSS_BUILD_DIR)/darwin/amd64
+	@GOOS=darwin GOARCH=amd64 go build $(BUILD_FLAGS) $(EXTRA_BUILD_FLAGS) -o $(CROSS_BUILD_DIR)/darwin/amd64/$(BINARY_NAME) $(MAIN_PACKAGE)
+	@echo "$(GREEN)$(SUCCESS_EMOJI) Build complete for darwin/amd64.$(RESET)"
+
+build-freebsd-amd64: tidy
+	@echo "$(CYAN)$(BUILD_EMOJI) Building $(BINARY_NAME) for freebsd/amd64...$(RESET)"
+	@mkdir -p $(CROSS_BUILD_DIR)/freebsd/amd64
+	@GOOS=freebsd GOARCH=amd64 go build $(BUILD_FLAGS) $(EXTRA_BUILD_FLAGS) -o $(CROSS_BUILD_DIR)/freebsd/amd64/$(BINARY_NAME) $(MAIN_PACKAGE)
+	@echo "$(GREEN)$(SUCCESS_EMOJI) Build complete for freebsd/amd64.$(RESET)"
+
+build-openbsd-amd64: tidy
+	@echo "$(CYAN)$(BUILD_EMOJI) Building $(BINARY_NAME) for openbsd/amd64...$(RESET)"
+	@mkdir -p $(CROSS_BUILD_DIR)/openbsd/amd64
+	@GOOS=openbsd GOARCH=amd64 go build $(BUILD_FLAGS) $(EXTRA_BUILD_FLAGS) -o $(CROSS_BUILD_DIR)/openbsd/amd64/$(BINARY_NAME) $(MAIN_PACKAGE)
+	@echo "$(GREEN)$(SUCCESS_EMOJI) Build complete for openbsd/amd64.$(RESET)"
+
+# Example targets for common Unix-based OS and architectures (ARM64)
+# These targets directly invoke the build logic with environment variables.
+build-linux-arm64: tidy
+	@echo "$(CYAN)$(BUILD_EMOJI) Building $(BINARY_NAME) for linux/arm64...$(RESET)"
+	@mkdir -p $(CROSS_BUILD_DIR)/linux/arm64
+	@GOOS=linux GOARCH=arm64 go build $(BUILD_FLAGS) $(EXTRA_BUILD_FLAGS) -o $(CROSS_BUILD_DIR)/linux/arm64/$(BINARY_NAME) $(MAIN_PACKAGE)
+	@echo "$(GREEN)$(SUCCESS_EMOJI) Build complete for linux/arm64.$(RESET)"
+
+build-darwin-arm64: tidy
+	@echo "$(CYAN)$(BUILD_EMOJI) Building $(BINARY_NAME) for darwin/arm64...$(RESET)"
+	@mkdir -p $(CROSS_BUILD_DIR)/darwin/arm64
+	@GOOS=darwin GOARCH=arm64 go build $(BUILD_FLAGS) $(EXTRA_BUILD_FLAGS) -o $(CROSS_BUILD_DIR)/darwin/arm64/$(BINARY_NAME) $(MAIN_PACKAGE)
+	@echo "$(GREEN)$(SUCCESS_EMOJI) Build complete for darwin/arm64.$(RESET)"
+
+build-freebsd-arm64: tidy
+	@echo "$(CYAN)$(BUILD_EMOJI) Building $(BINARY_NAME) for freebsd/arm64...$(RESET)"
+	@mkdir -p $(CROSS_BUILD_DIR)/freebsd/arm64
+	@GOOS=freebsd GOARCH=arm64 go build $(BUILD_FLAGS) $(EXTRA_BUILD_FLAGS) -o $(CROSS_BUILD_DIR)/freebsd/arm64/$(BINARY_NAME) $(MAIN_PACKAGE)
+	@echo "$(GREEN)$(SUCCESS_EMOJI) Build complete for freebsd/arm64.$(RESET)"
+
+build-openbsd-arm64: tidy
+	@echo "$(CYAN)$(BUILD_EMOJI) Building $(BINARY_NAME) for openbsd/arm64...$(RESET)"
+	@mkdir -p $(CROSS_BUILD_DIR)/openbsd/arm64
+	@GOOS=openbsd GOARCH=arm64 go build $(BUILD_FLAGS) $(EXTRA_BUILD_FLAGS) -o $(CROSS_BUILD_DIR)/openbsd/arm64/$(BINARY_NAME) $(MAIN_PACKAGE)
+	@echo "$(GREEN)$(SUCCESS_EMOJI) Build complete for openbsd/arm64.$(RESET)"
+
 # Run tests
 test: tidy
 	@echo "$(CYAN)$(TEST_EMOJI) Running tests...$(RESET)"
@@ -104,5 +168,37 @@ fmt:
 clean:
 	@echo "$(YELLOW)$(CLEAN_EMOJI) Cleaning build artifacts...$(RESET)"
 	@go clean
-	@rm -rf $(CROSS_BUILD_DIR)
+	@rm -rf $(CROSS_BUILD_DIR) # Remove cross-compiled binaries dir
 	@echo "$(GREEN)$(SUCCESS_EMOJI) Clean complete.$(RESET)"
+
+# Display help message
+help:
+	@echo "$(CYAN)$(STAR_EMOJI)Usage:$(RESET)"
+	@echo "  $(GREEN)make all$(RESET)                              - Builds and runs the application for the host OS/ARCH"
+	@echo "  $(GREEN)make build$(RESET)                            - Builds the application binary for the host OS/ARCH (e.g. make build EXTRA_BUILD_FLAGS='-tags netgo')"
+	@echo "  $(GREEN)make run$(RESET)                              - Runs the application (host OS/ARCH binary) (e.g. make run RUN_ARGS='--port 8080')"
+	@echo "  $(GREEN)make install$(RESET)                          - Installs the application binary to GOBIN (host OS/ARCH)"
+	@echo ""
+	@echo "$(CYAN)$(STAR_EMOJI)Cross-compilation:$(RESET)"
+	@echo "  $(GREEN)make build-cross OS=<os> ARCH=<arch> [EXTRA_BUILD_FLAGS='...']$(RESET)"
+	@echo "  $(GREEN)make build-linux-amd64$(RESET)                - Builds for Linux (amd64)"
+	@echo "  $(GREEN)make build-darwin-amd64$(RESET)               - Builds for macOS (amd64)"
+	@echo "  $(GREEN)make build-freebsd-amd64$(RESET)              - Builds for FreeBSD (amd64)"
+	@echo "  $(GREEN)make build-openbsd-amd64$(RESET)              - Builds for OpenBSD (amd64)"
+	@echo "  $(GREEN)make build-linux-arm64$(RESET)                - Builds for Linux (arm64)"
+	@echo "  $(GREEN)make build-darwin-arm64$(RESET)               - Builds for macOS M-series (arm64)"
+	@echo "  $(GREEN)make build-freebsd-arm64$(RESET)              - Builds for FreeBSD (arm64)"
+	@echo "  $(GREEN)make build-openbsd-arm64$(RESET)              - Builds for OpenBSD (arm64)"
+	@echo ""
+	@echo "$(CYAN)$(STAR_EMOJI)Development & Maintenance:$(RESET)"
+	@echo "  $(GREEN)make test$(RESET)                             - Runs tests (e.g. make test EXTRA_TEST_FLAGS='-count=10 -v')"
+	@echo "  $(GREEN)make tidy$(RESET)                             - Adds missing and removes unused modules"
+	@echo "  $(GREEN)make deps$(RESET)                             - Downloads required modules"
+	@echo "  $(GREEN)make fmt$(RESET)                              - Formats Go code"
+	@echo "  $(YELLOW)make clean$(RESET)                            - Removes build artifacts and cross-compiled binaries"
+	@echo "  $(CYAN)make help$(RESET)                             - Displays this help message"
+
+# Phony targets - prevents conflicts with files of the same name
+.PHONY: all build run install test clean fmt lint help tidy deps build-cross \
+	build-linux-amd64 build-darwin-amd64 build-freebsd-amd64 build-openbsd-amd64 \
+	build-linux-arm64 build-darwin-arm64 build-freebsd-arm64 build-openbsd-arm64
