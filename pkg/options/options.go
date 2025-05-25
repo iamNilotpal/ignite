@@ -29,7 +29,7 @@ type segmentOptions struct {
 	// Defines the filename prefix for segment files.
 	// Final filename will be: `prefix_segmentId_timestamp.seg`
 	//
-	// Default: "ignite"
+	// Default: "segment"
 	//
 	// Example: If Prefix is "mydata", a segment file might be "mydata_000001_20240525232100.seg".
 	Prefix string `json:"prefix"`
