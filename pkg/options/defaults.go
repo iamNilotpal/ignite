@@ -5,7 +5,7 @@ import "time"
 const (
 	// Specifies the default base directory where IgniteDB will store its data files.
 	// If no other directory is specified during initialization, this path will be used.
-	DefaultDataDir = "/ignitedb"
+	DefaultDataDir = "/var/lib/ignitedb"
 
 	// Defines the default time duration between automatic compaction operations.
 	// By default, compaction will run every 5 hours.
@@ -22,7 +22,7 @@ const (
 
 	// Specifies the default subdirectory within the main data directory
 	// where segment files will be stored.
-	DefaultSegmentDirectory = "/ignitedb/segments"
+	DefaultSegmentDirectory = "/segments"
 
 	// Defines the default prefix for segment file names.
 	// For example, a segment file might be named "segment-00001.db".
