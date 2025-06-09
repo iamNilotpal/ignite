@@ -10,21 +10,6 @@ reliable solution for in-memory data storage in Go applications.
 
 ---
 
-## Table of Contents
-
-1. [Design Goals](https://www.notion.so/Ignite-High-Throughput-In-Memory-Data-Store-in-Go-1e2766feffc1809ba74ec8d77596f482?pvs=21)
-2. [Architecture](https://www.notion.so/Ignite-High-Throughput-In-Memory-Data-Store-in-Go-1e2766feffc1809ba74ec8d77596f482?pvs=21)
-3. [Key Components](https://www.notion.so/Ignite-High-Throughput-In-Memory-Data-Store-in-Go-1e2766feffc1809ba74ec8d77596f482?pvs=21)
-   - [Storage Format](https://www.notion.so/Ignite-High-Throughput-In-Memory-Data-Store-in-Go-1e2766feffc1809ba74ec8d77596f482?pvs=21)
-   - [KeyDir (In-Memory Hash Table)](https://www.notion.so/Ignite-High-Throughput-In-Memory-Data-Store-in-Go-1e2766feffc1809ba74ec8d77596f482?pvs=21)
-   - [Hint Files](https://www.notion.so/Ignite-High-Throughput-In-Memory-Data-Store-in-Go-1e2766feffc1809ba74ec8d77596f482?pvs=21)
-4. [Write and Read Paths](https://www.notion.so/Ignite-High-Throughput-In-Memory-Data-Store-in-Go-1e2766feffc1809ba74ec8d77596f482?pvs=21)
-5. [Compaction](https://www.notion.so/Ignite-High-Throughput-In-Memory-Data-Store-in-Go-1e2766feffc1809ba74ec8d77596f482?pvs=21)
-6. [Performance Trade-offs](https://www.notion.so/Ignite-High-Throughput-In-Memory-Data-Store-in-Go-1e2766feffc1809ba74ec8d77596f482?pvs=21)
-7. [Diagrams](https://www.notion.so/Ignite-High-Throughput-In-Memory-Data-Store-in-Go-1e2766feffc1809ba74ec8d77596f482?pvs=21)
-
----
-
 ## Design Goals
 
 1. **High Write Throughput**: Achieved by sequential, append-only writes to
@@ -95,38 +80,12 @@ is active for writes. Each entry in the segment has the following structure:
 - **KeySize/ValueSize**: Lengths of the key and value.
 - **Key/Data**: The actual key and value bytes.
 
-### In-Memory Representation
-
-```go
-type Header struct {
-    Timestamp int64    // When the entry was written
-    ValueSize int64    // Size of the value in bytes
-    Checksum  int32    // CRC checksum for integrity
-    KeySize   uint32   // Size of the key in bytes
-    Version   uint8    // Format version
-}
-
-type Payload struct {
-    Key  []byte  // The key
-    Data []byte  // The value
-}
-```
-
 ---
 
 ### KeyDir (In-Memory Hash Table)
 
 The KeyDir is an in-memory hash table that maps keys to their locations on disk.
 It is rebuilt during startup using hint files (explained below).
-
-```go
-type KeyDir struct {
-    Offset      int64   // Byte offset of the entry in the segment
-    EntryLength int64   // Total length of the entry (header + key + data)
-    Timestamp   int64   // When the entry was written
-    SegmentId   uint16  // ID of the segment file
-}
-```
 
 ### KeyDir Lookup Flow
 
