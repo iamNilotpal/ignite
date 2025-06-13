@@ -38,6 +38,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 
 	"github.com/iamNilotpal/ignite/pkg/errors"
 	"github.com/iamNilotpal/ignite/pkg/filesys"
@@ -60,6 +61,7 @@ var (
 type Storage struct {
 	size            int64              // Current size of the active segment file in bytes.
 	activeSegmentId uint64             // Unique identifier for the currently active segment file being written to.
+	closed          atomic.Bool        // Flag indicating whether the storage has been closed and is no longer accepting writes.
 	activeSegment   *os.File           // The currently active segment file where new data is written.
 	options         *options.Options   // Configuration parameters controlling storage behavior.
 	log             *zap.SugaredLogger // Structured logger for operational visibility and debugging.
@@ -259,4 +261,88 @@ func (s *Storage) openSegmentFile(segmentID uint64, isNewSegment bool) (*os.File
 	)
 
 	return file, nil
+}
+
+// Close gracefully shuts down the storage system, ensuring all buffered data is written
+// to disk and all resources are properly released. This method follows the important
+// principle of "durability before cleanup" - data is flushed before resources are released.
+func (s *Storage) Close() error {
+	if !s.closed.CompareAndSwap(false, true) {
+		s.log.Warnw("Attempted to close storage with no active file")
+		return ErrSegmentClosed
+	}
+
+	s.log.Infow("Closing storage system", "currentSize", s.size)
+
+	var currentFileName string
+	var currentFilePath string
+	if stat, err := s.activeSegment.Stat(); err == nil {
+		currentFileName = stat.Name()
+		currentFilePath = filepath.Join(s.options.DataDir, s.options.SegmentOptions.Directory, currentFileName)
+	}
+
+	// First, ensure all buffered data is written to disk.
+	// This is critical for data durability - without sync, recently written data
+	// might still be in OS buffers and could be lost if the process crashes.
+	if err := s.activeSegment.Sync(); err != nil {
+		s.log.Errorw(
+			"Failed to sync file before closing",
+			"error", err,
+			"currentSize", s.size,
+			"fileName", currentFileName,
+			"filePath", currentFilePath,
+		)
+
+		// Even if sync fails, we should still attempt to close the file
+		// to prevent resource leaks, but we return the sync error since
+		// it indicates potential data loss.
+		if closeErr := s.activeSegment.Close(); closeErr != nil {
+			s.log.Errorw(
+				"Failed to close file after sync error",
+				"syncError", err,
+				"closeError", closeErr,
+				"fileName", currentFileName,
+				"filePath", currentFilePath,
+			)
+		}
+
+		// Return a StorageError with rich context about what failed during sync.
+		return errors.NewStorageError(err, errors.ErrorCodeIO, "Failed to sync file before closing").
+			WithFileName(currentFileName).
+			WithPath(currentFilePath).
+			WithOffset(int(s.size)).
+			WithDetail("operation", "sync").
+			WithDetail("currentSize", s.size)
+	}
+
+	// Close the file handle and release system resources.
+	if err := s.activeSegment.Close(); err != nil {
+		s.log.Errorw(
+			"Failed to close file handle",
+			"error", err,
+			"currentSize", s.size,
+			"fileName", currentFileName,
+			"filePath", currentFilePath,
+		)
+
+		// Return a StorageError with context about the close operation failure.
+		return errors.NewStorageError(err, errors.ErrorCodeIO, "Failed to close file handle").
+			WithFileName(currentFileName).
+			WithPath(currentFilePath).
+			WithOffset(int(s.size)).
+			WithDetail("operation", "close").
+			WithDetail("currentSize", s.size)
+	}
+
+	// Clear the file reference to prevent accidental use after close.
+	s.activeSegment = nil
+
+	s.log.Infow(
+		"Storage system closed successfully",
+		"finalSize", s.size,
+		"fileName", currentFileName,
+		"filePath", currentFilePath,
+	)
+
+	return nil
 }
