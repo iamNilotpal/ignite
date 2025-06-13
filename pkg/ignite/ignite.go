@@ -28,15 +28,13 @@ type Instance struct {
 }
 
 // Creates and initializes a new Ignite DB instance.
-func NewInstance(context context.Context, service string, opts ...options.OptionFunc) *Instance {
+func NewInstance(context context.Context, service string, opts ...options.OptionFunc) (*Instance, error) {
 	// Initialize a logger for the given service.
 	log := logger.New(service)
 
-	// Create a new internal engine with the initialized logger.
-	eng := engine.New(&engine.Config{Logger: log})
-
 	// Initialize default options.
 	defaultOpts := options.NewDefaultOptions()
+
 	// Apply any provided functional options to override defaults.
 	if len(opts) > 0 {
 		for _, opt := range opts {
@@ -44,10 +42,13 @@ func NewInstance(context context.Context, service string, opts ...options.Option
 		}
 	}
 
-	return &Instance{
-		engine:  eng,
-		options: &defaultOpts,
+	// Create a new internal engine with the initialized logger.
+	eng, err := engine.New(context, &engine.Config{Logger: log, Options: &defaultOpts})
+	if err != nil {
+		return nil, err
 	}
+
+	return &Instance{engine: eng, options: &defaultOpts}, nil
 }
 
 // Set stores a key-value pair in the database.
@@ -61,32 +62,29 @@ func (i *Instance) Set(context context.Context, key string, value []byte) error 
 // The entry will automatically be considered expired and inaccessible
 // after the specified duration from the time of setting.
 // If the key already exists, its value and expiry will be updated.
-func (i *Instance) SetX(ctx context.Context, key string, value []byte, expiry time.Duration) error {
+func (i *Instance) SetX(context context.Context, key string, value []byte, expiry time.Duration) error {
 	return nil
 }
 
 // Get retrieves the value associated with the given key.
-func (i *Instance) Get(ctx context.Context, key string) ([]byte, error) {
+func (i *Instance) Get(context context.Context, key string) ([]byte, error) {
 	return nil, nil
 }
 
 // Delete removes a key-value pair from the database.
 // The operation marks the key as deleted and will eventually be
 // removed during compaction.
-func (i *Instance) Delete(ctx context.Context, key string) error {
+func (i *Instance) Delete(context context.Context, key string) error {
 	return nil
 }
 
 // Close gracefully shuts down the Ignite DB instance, releasing all
 // associated resources, flushing any pending writes, and ensuring data
 // durability.
-//
-// It should be called when the DB instance is no longer needed to prevent
-// resource leaks and data corruption.
-func (i *Instance) Close(ctx context.Context) error {
+func (i *Instance) Close(context context.Context) error {
 	// TODO: Implement actual shutdown logic here.
 	// - Flushing in-memory buffers to disk.
 	// - Closing open file handles in the engine.
 	// - Waiting for any background goroutines (like compaction) to finish or be cancelled.
-	return nil
+	return i.engine.Close()
 }
