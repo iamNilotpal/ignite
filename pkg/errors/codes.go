@@ -66,3 +66,51 @@ const (
 	// This requires administrative intervention to remount the filesystem with write permissions.
 	ErrorCodeFilesystemReadonly ErrorCode = "FILESYSTEM_READONLY"
 )
+
+// Index-specific error codes extend the base error code system to handle
+// the unique failure modes that can occur during index operations.
+const (
+	// ErrorCodeIndexKeyNotFound indicates that a requested key doesn't exist in the index.
+	ErrorCodeIndexKeyNotFound ErrorCode = "INDEX_KEY_NOT_FOUND"
+
+	// ErrorCodeIndexCorrupted indicates that the index data structure itself has been
+	// damaged or is in an inconsistent state.
+	ErrorCodeIndexCorrupted ErrorCode = "INDEX_CORRUPTED"
+
+	// ErrorCodeIndexInvalidSegmentID occurs when a RecordPointer contains a segment ID
+	// that doesn't correspond to any known segment. This might happen if the index
+	// gets out of sync with the actual segment files on disk.
+	ErrorCodeIndexInvalidSegmentID ErrorCode = "INDEX_INVALID_SEGMENT_ID"
+
+	// ErrorCodeIndexFilenameGeneration indicates a failure in generating a segment
+	// filename from a segment ID and timestamp. This typically happens when the
+	// timestamp is invalid or when the naming pattern is misconfigured.
+	ErrorCodeIndexFilenameGeneration ErrorCode = "INDEX_FILENAME_GENERATION_FAILED"
+
+	// ErrorCodeIndexTimestampExtraction occurs when the system cannot parse a
+	// timestamp from a segment filename. This usually means the filename doesn't
+	// follow the expected naming convention or has been corrupted.
+	ErrorCodeIndexTimestampExtraction ErrorCode = "INDEX_TIMESTAMP_EXTRACTION_FAILED"
+
+	// ErrorCodeIndexRecoveryFailed indicates that the index could not be
+	// reconstructed from hint files or by scanning segment files.
+	ErrorCodeIndexRecoveryFailed ErrorCode = "INDEX_RECOVERY_FAILED"
+
+	// ErrorCodeIndexHintFileCorrupted occurs when hint files that should contain
+	// index reconstruction data are damaged or unreadable. The system might be
+	// able to recover by scanning actual data files, but this will be slower.
+	ErrorCodeIndexHintFileCorrupted ErrorCode = "INDEX_HINT_FILE_CORRUPTED"
+
+	// Validation and consistency errors - these help identify when the index
+	// data doesn't match expected patterns or contains invalid information.
+
+	// ErrorCodeIndexValidationFailed indicates that index validation checks
+	// have detected inconsistencies or invalid data in the index structure.
+	// This might happen during routine health checks or after recovery operations.
+	ErrorCodeIndexValidationFailed ErrorCode = "INDEX_VALIDATION_FAILED"
+
+	// ErrorCodeIndexChecksumMismatch occurs when the checksum stored in a
+	// RecordPointer doesn't match the checksum calculated from the actual
+	// data on disk, indicating potential data corruption.
+	ErrorCodeIndexChecksumMismatch ErrorCode = "INDEX_CHECKSUM_MISMATCH"
+)
