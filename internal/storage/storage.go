@@ -170,78 +170,10 @@ func New(ctx context.Context, config *Config) (*Storage, error) {
 	return storage, nil
 }
 
-// openSegmentFile handles the complex process of opening a segment file for writing.
-// This method encapsulates all the file operations needed to prepare a segment file,
-// including creation, permission setting, and positioning the file pointer correctly.
-//
-// The function handles both new segment creation and opening existing segments for
-// continued writing, ensuring that the file is always in the correct state for
-// append operations.
-func (s *Storage) openSegmentFile(segmentID uint64, isNewSegment bool) (*os.File, error) {
-	// Generate the filename using the seginfo package's naming convention.
-	filename := seginfo.GenerateName(segmentID, s.options.SegmentOptions.Prefix)
-	filePath := filepath.Join(s.options.DataDir, s.options.SegmentOptions.Directory, filename)
-
-	s.log.Infow(
-		"Opening segment file",
-		"segmentID", segmentID,
-		"filename", filename,
-		"path", filePath,
-		"isNewSegment", isNewSegment,
-	)
-
-	// Open the segment file with flags appropriate for append-only operations.
-	// O_CREATE: Create the file if it doesn't exist
-	// O_RDWR: Open for both reading and writing (reading may be needed for verification)
-	// O_APPEND: Ensure all writes go to the end of the file
-	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
-	if err != nil {
-		return nil, errors.ClassifyFileOpenError(err, filePath, filename)
-	}
-
-	// Position the file pointer at the end of the file.
-	// This is essential even with O_APPEND to ensure we know the current position.
-	offset, err := file.Seek(0, io.SeekEnd)
-	if err != nil {
-		// Attempt to close the file to prevent resource leaks.
-		if err := file.Close(); err != nil {
-			return nil, errors.NewStorageError(
-				err, errors.ErrorCodeIO,
-				"Failed to close file after seek error",
-			).
-				WithFileName(filename).
-				WithPath(filePath).
-				WithDetail("seekOffset", 0).
-				WithDetail("whence", io.SeekEnd)
-		}
-
-		return nil, errors.NewStorageError(
-			err, errors.ErrorCodeIO,
-			"Failed to seek to end of segment file",
-		).WithFileName(filename).
-			WithPath(filePath).
-			WithDetail("seekOffset", 0).
-			WithDetail("whence", io.SeekEnd).
-			WithDetail("operation", "file_seek").
-			WithDetail("suggestion", "file may be corrupted or filesystem may have issues")
-	}
-
-	s.log.Infow(
-		"Segment file opened successfully",
-		"path", filePath,
-		"currentOffset", offset,
-		"isNewSegment", isNewSegment,
-	)
-
-	return file, nil
-}
-
 // Close gracefully shuts down the storage system, ensuring all buffered data is written
-// to disk and all resources are properly released. This method follows the important
-// principle of "durability before cleanup" - data is flushed before resources are released.
+// to disk and all resources are properly released.
 func (s *Storage) Close() error {
 	if !s.closed.CompareAndSwap(false, true) {
-		s.log.Warnw("Attempted to close storage with no active file")
 		return ErrSegmentClosed
 	}
 
@@ -306,4 +238,70 @@ func (s *Storage) Close() error {
 	)
 
 	return nil
+}
+
+// Handles the complex process of opening a segment file for writing.
+// This method encapsulates all the file operations needed to prepare a segment file,
+// including creation, permission setting, and positioning the file pointer correctly.
+//
+// The function handles both new segment creation and opening existing segments for
+// continued writing, ensuring that the file is always in the correct state for
+// append operations.
+func (s *Storage) openSegmentFile(segmentID uint64, isNewSegment bool) (*os.File, error) {
+	// Generate the filename using the seginfo package's naming convention.
+	filename := seginfo.GenerateName(segmentID, s.options.SegmentOptions.Prefix)
+	filePath := filepath.Join(s.options.DataDir, s.options.SegmentOptions.Directory, filename)
+
+	s.log.Infow(
+		"Opening segment file",
+		"segmentID", segmentID,
+		"filename", filename,
+		"path", filePath,
+		"isNewSegment", isNewSegment,
+	)
+
+	// Open the segment file with flags appropriate for append-only operations.
+	// O_CREATE: Create the file if it doesn't exist
+	// O_RDWR: Open for both reading and writing (reading may be needed for verification)
+	// O_APPEND: Ensure all writes go to the end of the file
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+	if err != nil {
+		return nil, errors.ClassifyFileOpenError(err, filePath, filename)
+	}
+
+	// Position the file pointer at the end of the file.
+	// This is essential even with O_APPEND to ensure we know the current position.
+	offset, err := file.Seek(0, io.SeekEnd)
+	if err != nil {
+		// Attempt to close the file to prevent resource leaks.
+		if err := file.Close(); err != nil {
+			return nil, errors.NewStorageError(
+				err, errors.ErrorCodeIO,
+				"Failed to close file after seek error",
+			).
+				WithFileName(filename).
+				WithPath(filePath).
+				WithDetail("seekOffset", 0).
+				WithDetail("whence", io.SeekEnd)
+		}
+
+		return nil, errors.NewStorageError(
+			err, errors.ErrorCodeIO,
+			"Failed to seek to end of segment file",
+		).WithFileName(filename).
+			WithPath(filePath).
+			WithDetail("seekOffset", 0).
+			WithDetail("whence", io.SeekEnd).
+			WithDetail("operation", "file_seek").
+			WithDetail("suggestion", "file may be corrupted or filesystem may have issues")
+	}
+
+	s.log.Infow(
+		"Segment file opened successfully",
+		"path", filePath,
+		"currentOffset", offset,
+		"isNewSegment", isNewSegment,
+	)
+
+	return file, nil
 }
