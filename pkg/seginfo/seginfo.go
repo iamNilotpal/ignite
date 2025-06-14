@@ -27,7 +27,7 @@ import (
 	"github.com/iamNilotpal/ignite/pkg/filesys"
 )
 
-// GetLatestSegmentInfo discovers and analyzes the most recent segment file in the specified directory.
+// GetLastSegmentInfo discovers and analyzes the most recent segment file in the specified directory.
 // It performs a comprehensive search of the segment directory, identifies the file with the highest
 // sequence number, and returns detailed information about that file.
 //
@@ -35,32 +35,32 @@ import (
 //   - uint64: The sequence ID of the latest segment (1 if no segments exist).
 //   - os.FileInfo: File metadata for the latest segment (nil if no segments exist).
 //   - error: Detailed error information if any operation fails.
-func GetLatestSegmentInfo(dataDir, segmentDir, prefix string) (uint64, os.FileInfo, error) {
+func GetLastSegmentInfo(dataDir, segmentDir, prefix string) (uint64, os.FileInfo, error) {
 	if dataDir == "" || segmentDir == "" || prefix == "" {
 		return 0, nil, fmt.Errorf("all parameters (dataDir, segmentDir, prefix) must be non-empty")
 	}
 
 	// Discover the most recent segment file.
-	latestSegmentPath, err := GetLastSegmentName(dataDir, segmentDir, prefix)
+	lastSegmentPath, err := GetLastSegmentName(dataDir, segmentDir, prefix)
 	if err != nil {
 		return 0, nil, fmt.Errorf("failed to discover latest segment: %w", err)
 	}
 
 	// Handle the bootstrap case: no existing segments found.
-	if latestSegmentPath == "" {
+	if lastSegmentPath == "" {
 		return 1, nil, nil
 	}
 
 	// Extract and parse the segment ID from the filename.
-	segmentID, err := parseSegmentID(latestSegmentPath, prefix)
+	segmentID, err := ParseSegmentID(lastSegmentPath, prefix)
 	if err != nil {
-		return 0, nil, fmt.Errorf("failed to parse segment ID from %s: %w", latestSegmentPath, err)
+		return 0, nil, fmt.Errorf("failed to parse segment ID from %s: %w", lastSegmentPath, err)
 	}
 
 	// Retrieve file system metadata for the segment.
-	fileInfo, err := getFileInfo(latestSegmentPath)
+	fileInfo, err := GetFileInfo(lastSegmentPath)
 	if err != nil {
-		return 0, nil, fmt.Errorf("failed to retrieve file info for %s: %w", latestSegmentPath, err)
+		return 0, nil, fmt.Errorf("failed to retrieve file info for %s: %w", lastSegmentPath, err)
 	}
 
 	return segmentID, fileInfo, nil
@@ -118,8 +118,8 @@ func GenerateName(id uint64, prefix string) string {
 	return fmt.Sprintf("%s_%05d_%d.seg", prefix, id, timestamp)
 }
 
-// parseSegmentID extracts the sequence ID from a segment filename.
-func parseSegmentID(fullPath, prefix string) (uint64, error) {
+// ParseSegmentID extracts the sequence ID from a segment filename.
+func ParseSegmentID(fullPath, prefix string) (uint64, error) {
 	// Extract just the filename from the full path.
 	_, filename := filepath.Split(fullPath)
 
@@ -153,10 +153,10 @@ func parseSegmentID(fullPath, prefix string) (uint64, error) {
 	return id, nil
 }
 
-// getFileInfo safely retrieves file system metadata for a given path.
+// GetFileInfo safely retrieves file system metadata for a given path.
 // This helper function encapsulates the file opening and stat operations,
 // providing consistent error handling and resource cleanup.
-func getFileInfo(filePath string) (os.FileInfo, error) {
+func GetFileInfo(filePath string) (os.FileInfo, error) {
 	// Open the file in read-only mode.
 	file, err := os.OpenFile(filePath, os.O_RDONLY, 0644)
 	if err != nil {
