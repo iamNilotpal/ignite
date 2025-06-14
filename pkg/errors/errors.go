@@ -76,6 +76,8 @@ package errors
 
 import (
 	stdErrors "errors"
+	"os"
+	"syscall"
 )
 
 // IsValidationError checks if the given error is a ValidationError or contains one in its error chain.
@@ -291,4 +293,157 @@ func GetErrorDetails(err error) map[string]any {
 
 	// Return empty map for errors without details.
 	return make(map[string]any)
+}
+
+// Analyzes directory creation failures and returns appropriate error
+// codes based on the underlying system error. This helps clients
+// understand exactly what went wrong and how they might fix it.
+func ClassifyDirectoryCreationError(err error, path string) error {
+	// Check if this is a permission denied error.
+	if os.IsPermission(err) {
+		return NewStorageError(
+			err, ErrorCodePermissionDenied,
+			"Insufficient permissions to create segment directory",
+		).WithPath(path).
+			WithDetail("operation", "directory_creation").
+			WithDetail("required_permission", "write").
+			WithDetail("suggestion", "check directory permissions or run with elevated privileges")
+	}
+
+	// Check for disk space issues using syscall analysis.
+	if pathErr, ok := err.(*os.PathError); ok {
+		if errno, ok := pathErr.Err.(syscall.Errno); ok {
+			switch errno {
+			case syscall.ENOSPC:
+				{
+					return NewStorageError(
+						err, ErrorCodeDiskFull,
+						"Insufficient disk space to create segment directory",
+					).WithPath(path).
+						WithDetail("operation", "directory_creation").
+						WithDetail("suggestion", "free up disk space or choose a different location")
+				}
+			case syscall.EROFS:
+				{
+					return NewStorageError(
+						err, ErrorCodeFilesystemReadonly,
+						"Cannot create directory on read-only filesystem",
+					).WithPath(path).
+						WithDetail("operation", "directory_creation").
+						WithDetail("suggestion", "remount filesystem with write permissions")
+				}
+			}
+		}
+	}
+
+	// For any other I/O errors, provide the generic I/O error with context
+	return NewStorageError(
+		err, ErrorCodeIO, "Failed to create segment directory",
+	).WithPath(path).WithDetail("operation", "directory_creation")
+}
+
+// ClassifyFileOpenError analyzes file opening failures and returns appropriate
+// error codes based on the underlying system error. This provides much more
+// specific information than a generic I/O error.
+func ClassifyFileOpenError(err error, filePath, fileName string) error {
+	// Check if this is a permission denied error.
+	if os.IsPermission(err) {
+		return NewStorageError(
+			err, ErrorCodePermissionDenied,
+			"Insufficient permissions to open segment file",
+		).WithPath(filePath).
+			WithFileName(fileName).
+			WithDetail("operation", "file_open").
+			WithDetail("required_permission", "read_write").
+			WithDetail("suggestion", "check file permissions or run with elevated privileges")
+	}
+
+	// Check for disk space issues and other system-level
+	if pathErr, ok := err.(*os.PathError); ok {
+		if errno, ok := pathErr.Err.(syscall.Errno); ok {
+			switch errno {
+			case syscall.ENOSPC:
+				{
+					return NewStorageError(
+						err, ErrorCodeDiskFull,
+						"Insufficient disk space to create segment file",
+					).WithPath(filePath).
+						WithFileName(fileName).
+						WithDetail("operation", "file_open").
+						WithDetail("suggestion", "free up disk space")
+				}
+			case syscall.EROFS:
+				{
+					return NewStorageError(
+						err, ErrorCodeFilesystemReadonly,
+						"Cannot create file on read-only filesystem",
+					).WithPath(filePath).
+						WithFileName(fileName).
+						WithDetail("operation", "file_open").
+						WithDetail("suggestion", "remount filesystem with write permissions")
+				}
+			}
+		}
+	}
+
+	// For any other I/O errors during file opening.
+	return NewStorageError(err, ErrorCodeIO, "Failed to open segment file").
+		WithPath(filePath).
+		WithFileName(fileName).
+		WithDetail("operation", "file_open").
+		WithDetail("flags", []string{"O_CREATE", "O_RDWR", "O_APPEND"})
+}
+
+// Analyzes sync operation failures and returns appropriate error codes.
+// Sync failures can indicate various underlying issues from
+// disk space problems to filesystem corruption.
+func ClassifySyncError(err error, fileName, filePath string, offset int) error {
+	// Check for specific system errors during sync operations.
+	if pathErr, ok := err.(*os.PathError); ok {
+		if errno, ok := pathErr.Err.(syscall.Errno); ok {
+			switch errno {
+			case syscall.ENOSPC:
+				{
+					return NewStorageError(
+						err, ErrorCodeDiskFull,
+						"Cannot sync file: insufficient disk space",
+					).WithFileName(fileName).
+						WithPath(filePath).
+						WithOffset(offset).
+						WithDetail("operation", "file_sync").
+						WithDetail("suggestion", "free up disk space before continuing")
+				}
+			case syscall.EROFS:
+				{
+					return NewStorageError(
+						err, ErrorCodeFilesystemReadonly,
+						"Cannot sync file: filesystem is read-only",
+					).WithFileName(fileName).
+						WithPath(filePath).
+						WithOffset(offset).
+						WithDetail("operation", "file_sync").
+						WithDetail("suggestion", "remount filesystem with write permissions")
+				}
+			case syscall.EIO:
+				{ // I/O error during sync often indicates hardware or corruption issues.
+					return NewStorageError(
+						err, ErrorCodeIO,
+						"I/O error during file sync - possible hardware or corruption issue",
+					).WithFileName(fileName).
+						WithPath(filePath).
+						WithOffset(offset).
+						WithDetail("operation", "file_sync").
+						WithDetail("severity", "high").
+						WithDetail("suggestion", "check filesystem integrity and hardware health")
+				}
+			}
+		}
+	}
+
+	// For any other sync errors, provide generic I/O error with context
+	return NewStorageError(
+		err, ErrorCodeIO, "Failed to sync segment file to disk",
+	).WithFileName(fileName).WithPath(filePath).WithOffset(offset).
+		WithDetail("operation", "file_sync").
+		WithDetail("currentSize", offset)
 }
