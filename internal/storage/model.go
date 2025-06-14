@@ -18,15 +18,13 @@ import (
 type Storage struct {
 	size            int64              // Current size of the active segment file in bytes.
 	activeSegmentId uint64             // Unique identifier for the currently active segment file being written to.
-	closed          atomic.Bool        // Flag indicating whether the storage has been closed and is no longer accepting writes.
+	closed          atomic.Bool        // Flag indicating whether the storage has been closed.
 	activeSegment   *os.File           // The currently active segment file where new data is written.
 	options         *options.Options   // Configuration parameters controlling storage behavior.
 	log             *zap.SugaredLogger // Structured logger for operational visibility and debugging.
 }
 
 // Config encapsulates all the configuration parameters required to initialize a Storage instance.
-// This structure provides a clean way to pass multiple configuration values while maintaining
-// flexibility for future configuration additions without breaking the API.
 type Config struct {
 	Options *options.Options
 	Logger  *zap.SugaredLogger
