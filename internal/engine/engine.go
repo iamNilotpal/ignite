@@ -56,7 +56,13 @@ type Config struct {
 //   - error: Any error encountered during initialization, typically from storage setup
 func New(ctx context.Context, config *Config) (*Engine, error) {
 	// Initialize the index subsystem first since it has no external dependencies.
-	index := index.New()
+	index, err := index.New(ctx, &index.Config{
+		Logger:  config.Logger,
+		DataDir: config.Options.DataDir,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	// Initialize the compaction subsystem, which also has minimal dependencies.
 	compaction := compaction.New()
@@ -77,11 +83,11 @@ func New(ctx context.Context, config *Config) (*Engine, error) {
 	// to handle database operations. The closed flag defaults to false,
 	// indicating the engine is in an active, usable state.
 	return &Engine{
-		options:    config.Options,
-		log:        config.Logger,
 		index:      index,
 		storage:    storage,
 		compaction: compaction,
+		log:        config.Logger,
+		options:    config.Options,
 	}, nil
 }
 
@@ -89,14 +95,13 @@ func New(ctx context.Context, config *Config) (*Engine, error) {
 // This method ensures that all pending operations complete and that data is
 // properly persisted before the engine becomes unusable.
 func (e *Engine) Close() error {
-	// Use atomic compare-and-swap to transition from open (false) to closed (true).
-	// This operation is atomic and thread-safe, ensuring only one goroutine
-	// can successfully close the engine. The operation returns true if the
-	// swap was successful (engine was open) or false if it failed (already closed).
 	if !e.closed.CompareAndSwap(false, true) {
 		return ErrEngineClosed
 	}
 
-	// Perform the actual shutdown by closing the storage subsystem.
+	if err := e.index.Close(); err != nil {
+		return err
+	}
+
 	return e.storage.Close()
 }
