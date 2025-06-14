@@ -130,3 +130,165 @@ func IsIndexError(err error) bool {
 	var ie *IndexError
 	return stdErrors.As(err, &ie)
 }
+
+// AsValidationError safely extracts a ValidationError from an error chain, providing access
+// to validation-specific context such as which field failed, what rule was violated, and
+// what values were provided versus expected. This extraction is essential for building
+// meaningful error responses that help clients understand and correct their input.
+//
+// The extracted ValidationError provides access to specialized methods like Field(),
+// Rule(), Provided(), and Expected(), which contain the detailed context needed for
+// sophisticated error handling and user interface feedback.
+//
+// Example usage:
+//
+//	if validationErr, ok := errors.AsValidationError(err); ok {
+//	    logData := map[string]interface{}{
+//	        "field": validationErr.Field(),
+//	        "rule": validationErr.Rule(),
+//	        "provided": validationErr.Provided(),
+//	        "expected": validationErr.Expected(),
+//	    }
+//	    logger.Error("Validation failed", logData)
+//	}
+func AsValidationError(err error) (*ValidationError, bool) {
+	var ve *ValidationError
+	if stdErrors.As(err, &ve) {
+		return ve, true
+	}
+	return nil, false
+}
+
+// AsStorageError extracts StorageError context from an error chain, providing access to
+// storage-specific information such as segment IDs, file offsets, file names, and paths.
+// This context is crucial for implementing storage error recovery procedures and for
+// providing detailed information to system administrators and monitoring systems.
+//
+// The extracted StorageError provides access to methods like SegmentId(), Offset(),
+// FileName(), and Path(), which contain the precise location information needed for
+// effective storage error handling and recovery.
+//
+// Example usage:
+//
+//	if storageErr, ok := errors.AsStorageError(err); ok {
+//	    errorContext := map[string]interface{}{
+//	        "segmentId": storageErr.SegmentId(),
+//	        "offset": storageErr.Offset(),
+//	        "fileName": storageErr.FileName(),
+//	        "path": storageErr.Path(),
+//	        "errorCode": storageErr.Code(),
+//	    }
+//	    handleStorageFailure(errorContext)
+//	}
+func AsStorageError(err error) (*StorageError, bool) {
+	var se *StorageError
+	if stdErrors.As(err, &se) {
+		return se, true
+	}
+	return nil, false
+}
+
+// AsIndexError extracts IndexError context, providing access to index-specific information
+// such as the key being processed, the operation being performed, segment involvement,
+// and index size statistics. This context is essential for diagnosing performance issues,
+// planning capacity management, and implementing index recovery procedures.
+//
+// The extracted IndexError provides access to methods like Key(), Operation(), SegmentID(),
+// IndexSize(), and MemoryUsage(), which contain the operational context needed for
+// sophisticated index error handling and performance optimization.
+//
+// Example usage:
+//
+//	if indexErr, ok := errors.AsIndexError(err); ok {
+//	    performanceMetrics := map[string]interface{}{
+//	        "key": indexErr.Key(),
+//	        "operation": indexErr.Operation(),
+//	        "segmentId": indexErr.SegmentID(),
+//	        "indexSize": indexErr.IndexSize(),
+//	        "memoryUsage": indexErr.MemoryUsage(),
+//	    }
+//	    analyzeIndexPerformance(performanceMetrics)
+//	}
+func AsIndexError(err error) (*IndexError, bool) {
+	var ie *IndexError
+	if stdErrors.As(err, &ie) {
+		return ie, true
+	}
+	return nil, false
+}
+
+// GetErrorCode extracts the error code from any error that supports it, or returns
+// ErrorCodeInternal for errors that don't have specific codes. This function provides
+// a consistent way to categorize errors for monitoring and handling purposes.
+//
+// Example usage:
+//
+//	errorCode := errors.GetErrorCode(err)
+//	metrics.IncrementErrorCounter(string(errorCode))
+//
+//	switch errorCode {
+//	case errors.ErrorCodeDiskFull:
+//	    triggerDiskSpaceAlert()
+//	case errors.ErrorCodePermissionDenied:
+//	    escalateToAdministrator()
+//	}
+func GetErrorCode(err error) ErrorCode {
+	// Try ValidationError first.
+	if ve, ok := AsValidationError(err); ok {
+		return ve.Code()
+	}
+
+	// Try StorageError next.
+	if se, ok := AsStorageError(err); ok {
+		return se.Code()
+	}
+
+	// Try IndexError.
+	if ie, ok := AsIndexError(err); ok {
+		return ie.Code()
+	}
+
+	// For any other error, return a generic internal error code.
+	return ErrorCodeInternal
+}
+
+// GetErrorDetails extracts structured details from any error that supports them,
+// returning an empty map for errors without details. This function provides consistent
+// access to additional error context regardless of the specific error type.
+//
+// Example usage:
+//
+//	details := errors.GetErrorDetails(err)
+//	if len(details) > 0 {
+//	    logger.WithFields(details).Error("Operation failed", "error", err.Error())
+//	}
+//
+//	// Check for specific detail keys
+//	if operation, exists := details["operation"]; exists {
+//	    handleOperationSpecificError(operation.(string))
+//	}
+func GetErrorDetails(err error) map[string]any {
+	// Try ValidationError first.
+	if ve, ok := AsValidationError(err); ok {
+		if details := ve.Details(); details != nil {
+			return details
+		}
+	}
+
+	// Try StorageError next.
+	if se, ok := AsStorageError(err); ok {
+		if details := se.Details(); details != nil {
+			return details
+		}
+	}
+
+	// Try IndexError.
+	if ie, ok := AsIndexError(err); ok {
+		if details := ie.Details(); details != nil {
+			return details
+		}
+	}
+
+	// Return empty map for errors without details.
+	return make(map[string]any)
+}
