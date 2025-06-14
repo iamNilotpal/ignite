@@ -76,6 +76,8 @@ package errors
 
 import (
 	stdErrors "errors"
+	"os"
+	"syscall"
 )
 
 // IsValidationError checks if the given error is a ValidationError or contains one in its error chain.
@@ -129,4 +131,319 @@ func IsStorageError(err error) bool {
 func IsIndexError(err error) bool {
 	var ie *IndexError
 	return stdErrors.As(err, &ie)
+}
+
+// AsValidationError safely extracts a ValidationError from an error chain, providing access
+// to validation-specific context such as which field failed, what rule was violated, and
+// what values were provided versus expected. This extraction is essential for building
+// meaningful error responses that help clients understand and correct their input.
+//
+// The extracted ValidationError provides access to specialized methods like Field(),
+// Rule(), Provided(), and Expected(), which contain the detailed context needed for
+// sophisticated error handling and user interface feedback.
+//
+// Example usage:
+//
+//	if validationErr, ok := errors.AsValidationError(err); ok {
+//	    logData := map[string]interface{}{
+//	        "field": validationErr.Field(),
+//	        "rule": validationErr.Rule(),
+//	        "provided": validationErr.Provided(),
+//	        "expected": validationErr.Expected(),
+//	    }
+//	    logger.Error("Validation failed", logData)
+//	}
+func AsValidationError(err error) (*ValidationError, bool) {
+	var ve *ValidationError
+	if stdErrors.As(err, &ve) {
+		return ve, true
+	}
+	return nil, false
+}
+
+// AsStorageError extracts StorageError context from an error chain, providing access to
+// storage-specific information such as segment IDs, file offsets, file names, and paths.
+// This context is crucial for implementing storage error recovery procedures and for
+// providing detailed information to system administrators and monitoring systems.
+//
+// The extracted StorageError provides access to methods like SegmentId(), Offset(),
+// FileName(), and Path(), which contain the precise location information needed for
+// effective storage error handling and recovery.
+//
+// Example usage:
+//
+//	if storageErr, ok := errors.AsStorageError(err); ok {
+//	    errorContext := map[string]interface{}{
+//	        "segmentId": storageErr.SegmentId(),
+//	        "offset": storageErr.Offset(),
+//	        "fileName": storageErr.FileName(),
+//	        "path": storageErr.Path(),
+//	        "errorCode": storageErr.Code(),
+//	    }
+//	    handleStorageFailure(errorContext)
+//	}
+func AsStorageError(err error) (*StorageError, bool) {
+	var se *StorageError
+	if stdErrors.As(err, &se) {
+		return se, true
+	}
+	return nil, false
+}
+
+// AsIndexError extracts IndexError context, providing access to index-specific information
+// such as the key being processed, the operation being performed, segment involvement,
+// and index size statistics. This context is essential for diagnosing performance issues,
+// planning capacity management, and implementing index recovery procedures.
+//
+// The extracted IndexError provides access to methods like Key(), Operation(), SegmentID(),
+// IndexSize(), and MemoryUsage(), which contain the operational context needed for
+// sophisticated index error handling and performance optimization.
+//
+// Example usage:
+//
+//	if indexErr, ok := errors.AsIndexError(err); ok {
+//	    performanceMetrics := map[string]interface{}{
+//	        "key": indexErr.Key(),
+//	        "operation": indexErr.Operation(),
+//	        "segmentId": indexErr.SegmentID(),
+//	        "indexSize": indexErr.IndexSize(),
+//	        "memoryUsage": indexErr.MemoryUsage(),
+//	    }
+//	    analyzeIndexPerformance(performanceMetrics)
+//	}
+func AsIndexError(err error) (*IndexError, bool) {
+	var ie *IndexError
+	if stdErrors.As(err, &ie) {
+		return ie, true
+	}
+	return nil, false
+}
+
+// GetErrorCode extracts the error code from any error that supports it, or returns
+// ErrorCodeInternal for errors that don't have specific codes. This function provides
+// a consistent way to categorize errors for monitoring and handling purposes.
+//
+// Example usage:
+//
+//	errorCode := errors.GetErrorCode(err)
+//	metrics.IncrementErrorCounter(string(errorCode))
+//
+//	switch errorCode {
+//	case errors.ErrorCodeDiskFull:
+//	    triggerDiskSpaceAlert()
+//	case errors.ErrorCodePermissionDenied:
+//	    escalateToAdministrator()
+//	}
+func GetErrorCode(err error) ErrorCode {
+	// Try ValidationError first.
+	if ve, ok := AsValidationError(err); ok {
+		return ve.Code()
+	}
+
+	// Try StorageError next.
+	if se, ok := AsStorageError(err); ok {
+		return se.Code()
+	}
+
+	// Try IndexError.
+	if ie, ok := AsIndexError(err); ok {
+		return ie.Code()
+	}
+
+	// For any other error, return a generic internal error code.
+	return ErrorCodeInternal
+}
+
+// GetErrorDetails extracts structured details from any error that supports them,
+// returning an empty map for errors without details. This function provides consistent
+// access to additional error context regardless of the specific error type.
+//
+// Example usage:
+//
+//	details := errors.GetErrorDetails(err)
+//	if len(details) > 0 {
+//	    logger.WithFields(details).Error("Operation failed", "error", err.Error())
+//	}
+//
+//	// Check for specific detail keys
+//	if operation, exists := details["operation"]; exists {
+//	    handleOperationSpecificError(operation.(string))
+//	}
+func GetErrorDetails(err error) map[string]any {
+	// Try ValidationError first.
+	if ve, ok := AsValidationError(err); ok {
+		if details := ve.Details(); details != nil {
+			return details
+		}
+	}
+
+	// Try StorageError next.
+	if se, ok := AsStorageError(err); ok {
+		if details := se.Details(); details != nil {
+			return details
+		}
+	}
+
+	// Try IndexError.
+	if ie, ok := AsIndexError(err); ok {
+		if details := ie.Details(); details != nil {
+			return details
+		}
+	}
+
+	// Return empty map for errors without details.
+	return make(map[string]any)
+}
+
+// Analyzes directory creation failures and returns appropriate error
+// codes based on the underlying system error. This helps clients
+// understand exactly what went wrong and how they might fix it.
+func ClassifyDirectoryCreationError(err error, path string) error {
+	// Check if this is a permission denied error.
+	if os.IsPermission(err) {
+		return NewStorageError(
+			err, ErrorCodePermissionDenied,
+			"Insufficient permissions to create segment directory",
+		).WithPath(path).
+			WithDetail("operation", "directory_creation").
+			WithDetail("required_permission", "write").
+			WithDetail("suggestion", "check directory permissions or run with elevated privileges")
+	}
+
+	// Check for disk space issues using syscall analysis.
+	if pathErr, ok := err.(*os.PathError); ok {
+		if errno, ok := pathErr.Err.(syscall.Errno); ok {
+			switch errno {
+			case syscall.ENOSPC:
+				{
+					return NewStorageError(
+						err, ErrorCodeDiskFull,
+						"Insufficient disk space to create segment directory",
+					).WithPath(path).
+						WithDetail("operation", "directory_creation").
+						WithDetail("suggestion", "free up disk space or choose a different location")
+				}
+			case syscall.EROFS:
+				{
+					return NewStorageError(
+						err, ErrorCodeFilesystemReadonly,
+						"Cannot create directory on read-only filesystem",
+					).WithPath(path).
+						WithDetail("operation", "directory_creation").
+						WithDetail("suggestion", "remount filesystem with write permissions")
+				}
+			}
+		}
+	}
+
+	// For any other I/O errors, provide the generic I/O error with context
+	return NewStorageError(
+		err, ErrorCodeIO, "Failed to create segment directory",
+	).WithPath(path).WithDetail("operation", "directory_creation")
+}
+
+// ClassifyFileOpenError analyzes file opening failures and returns appropriate
+// error codes based on the underlying system error. This provides much more
+// specific information than a generic I/O error.
+func ClassifyFileOpenError(err error, filePath, fileName string) error {
+	// Check if this is a permission denied error.
+	if os.IsPermission(err) {
+		return NewStorageError(
+			err, ErrorCodePermissionDenied,
+			"Insufficient permissions to open segment file",
+		).WithPath(filePath).
+			WithFileName(fileName).
+			WithDetail("operation", "file_open").
+			WithDetail("required_permission", "read_write").
+			WithDetail("suggestion", "check file permissions or run with elevated privileges")
+	}
+
+	// Check for disk space issues and other system-level
+	if pathErr, ok := err.(*os.PathError); ok {
+		if errno, ok := pathErr.Err.(syscall.Errno); ok {
+			switch errno {
+			case syscall.ENOSPC:
+				{
+					return NewStorageError(
+						err, ErrorCodeDiskFull,
+						"Insufficient disk space to create segment file",
+					).WithPath(filePath).
+						WithFileName(fileName).
+						WithDetail("operation", "file_open").
+						WithDetail("suggestion", "free up disk space")
+				}
+			case syscall.EROFS:
+				{
+					return NewStorageError(
+						err, ErrorCodeFilesystemReadonly,
+						"Cannot create file on read-only filesystem",
+					).WithPath(filePath).
+						WithFileName(fileName).
+						WithDetail("operation", "file_open").
+						WithDetail("suggestion", "remount filesystem with write permissions")
+				}
+			}
+		}
+	}
+
+	// For any other I/O errors during file opening.
+	return NewStorageError(err, ErrorCodeIO, "Failed to open segment file").
+		WithPath(filePath).
+		WithFileName(fileName).
+		WithDetail("operation", "file_open").
+		WithDetail("flags", []string{"O_CREATE", "O_RDWR", "O_APPEND"})
+}
+
+// Analyzes sync operation failures and returns appropriate error codes.
+// Sync failures can indicate various underlying issues from
+// disk space problems to filesystem corruption.
+func ClassifySyncError(err error, fileName, filePath string, offset int) error {
+	// Check for specific system errors during sync operations.
+	if pathErr, ok := err.(*os.PathError); ok {
+		if errno, ok := pathErr.Err.(syscall.Errno); ok {
+			switch errno {
+			case syscall.ENOSPC:
+				{
+					return NewStorageError(
+						err, ErrorCodeDiskFull,
+						"Cannot sync file: insufficient disk space",
+					).WithFileName(fileName).
+						WithPath(filePath).
+						WithOffset(offset).
+						WithDetail("operation", "file_sync").
+						WithDetail("suggestion", "free up disk space before continuing")
+				}
+			case syscall.EROFS:
+				{
+					return NewStorageError(
+						err, ErrorCodeFilesystemReadonly,
+						"Cannot sync file: filesystem is read-only",
+					).WithFileName(fileName).
+						WithPath(filePath).
+						WithOffset(offset).
+						WithDetail("operation", "file_sync").
+						WithDetail("suggestion", "remount filesystem with write permissions")
+				}
+			case syscall.EIO:
+				{ // I/O error during sync often indicates hardware or corruption issues.
+					return NewStorageError(
+						err, ErrorCodeIO,
+						"I/O error during file sync - possible hardware or corruption issue",
+					).WithFileName(fileName).
+						WithPath(filePath).
+						WithOffset(offset).
+						WithDetail("operation", "file_sync").
+						WithDetail("severity", "high").
+						WithDetail("suggestion", "check filesystem integrity and hardware health")
+				}
+			}
+		}
+	}
+
+	// For any other sync errors, provide generic I/O error with context
+	return NewStorageError(
+		err, ErrorCodeIO, "Failed to sync segment file to disk",
+	).WithFileName(fileName).WithPath(filePath).WithOffset(offset).
+		WithDetail("operation", "file_sync").
+		WithDetail("currentSize", offset)
 }
