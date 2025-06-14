@@ -135,3 +135,53 @@ func (ie *IndexError) IndexSize() int {
 func (ie *IndexError) MemoryUsage() int64 {
 	return ie.memoryUsage
 }
+
+// Helper functions for creating common index errors with appropriate context.
+// These convenience functions encapsulate best practices for index error
+// creation while reducing the cognitive burden on developers using the system.
+
+// NewKeyNotFoundError creates a specialized error for missing keys.
+// This constructor demonstrates how the fixed method chaining enables
+// seamless mixing of base methods and index-specific methods.
+func NewKeyNotFoundError(key string) *IndexError {
+	return NewIndexError(nil, ErrorCodeIndexKeyNotFound, "key not found in index").
+		WithKey(key).
+		WithOperation("Get").
+		WithDetail("lookup_time", "immediate"). // Base method works seamlessly
+		WithDetail("cache_checked", true)
+}
+
+// NewSegmentIDError creates an error for invalid segment ID conditions.
+// This constructor demonstrates building comprehensive error context
+// using both domain-specific and general contextual information.
+func NewSegmentIDError(segmentID uint16, key string) *IndexError {
+	return NewIndexError(nil, ErrorCodeIndexInvalidSegmentID, "segment ID not found").
+		WithSegmentID(segmentID).
+		WithKey(key).
+		WithOperation("Get").
+		WithDetail("segment_file_exists", false).
+		WithDetail("index_consistency_check", "failed")
+}
+
+// NewTimestampExtractionError creates an error for filename parsing failures.
+// This constructor shows how to properly chain complex error context
+// while maintaining type safety throughout the construction process.
+func NewTimestampExtractionError(filename string, cause error) *IndexError {
+	return NewIndexError(cause, ErrorCodeIndexTimestampExtraction, "failed to extract timestamp from filename").
+		WithOperation("TimestampExtraction").
+		WithDetail("filename", filename).
+		WithDetail("expected_format", "prefix_NNNNN_timestamp.seg").
+		WithDetail("parsing_stage", "timestamp_component")
+}
+
+// NewIndexCorruptionError creates an error for index corruption scenarios.
+// This specialized constructor provides comprehensive context for
+// serious index integrity issues that require immediate attention.
+func NewIndexCorruptionError(operation string, indexSize int, cause error) *IndexError {
+	return NewIndexError(cause, ErrorCodeIndexCorrupted, "index data structure corrupted").
+		WithOperation(operation).
+		WithIndexSize(indexSize).
+		WithDetail("corruption_detected", true).
+		WithDetail("recovery_required", true).
+		WithDetail("backup_recommended", true)
+}
